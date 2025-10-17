@@ -48,7 +48,7 @@ Title;URL;Topic;Difficulty
 ---
 
 ## Seed Data
-A default LeetCode-based problem set (~230 problems) is preloaded.  
+A default LeetCode-based problem set (~150 problems) is preloaded.  
 You can modify it in `loadData()` by editing the `seed` array.
 
 ---
