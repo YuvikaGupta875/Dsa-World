@@ -1,0 +1,1495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>DSA Worlds</title>
+
+<!-- D3 v7 (unpkg CDN only) -->
+<script src="https://unpkg.com/d3@7"></script>
+
+<style>
+  :root{
+    --bg:#0b0f16;
+    --panel:#121826cc;
+    --muted:#8a94a6;
+    --text:#e6eefb;
+    --chip:#223044;
+    --chipActive:#2f80ed;
+    --green:#2ecc71;
+    --warning:#ffcf5d;
+    --accent:#9b59b6;
+    --border:#2b3446;
+    --tooltip:#0d1117;
+  }
+
+  /* LIGHT THEME PALETTE */
+  body.theme-light{
+    --bg:#f7f8fb;
+    --panel:#ffffffcc;
+    --muted:#5d6b82;
+    --text:#1d2433;
+    --chip:#f0f3f9;
+    --chipActive:#2563eb;
+    --green:#22c55e;
+    --warning:#b7791f;
+    --accent:#7c3aed;
+    --border:#d8e0ee;
+    --tooltip:#ffffff;
+
+    /* node/bubble styling */
+    --node:#3b82f6;
+    --nodeDone:#22c55e;
+    --nodeStroke:#c9d5ea;
+  }
+
+  html,body{
+    margin:0;
+    height:100%;
+    background:var(--bg);
+    color:var(--text);
+    font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
+    overflow:hidden;
+  }
+
+  /* Layers */
+  #bg, #fg{
+    position:fixed;
+    inset:0;
+    width:100%;
+    height:100%;
+    display:block;
+  }
+
+  /* NEW: gaming FX canvas behind everything */
+  #fx{
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    z-index: 0;           /* back-most layer */
+    background: #05060a;  /* deep space */
+  }
+  #bg, #fg { z-index: 1; } /* keep your SVGs above the canvas */
+
+  /* Floating Control Panel */
+  .panel{
+    position:fixed;
+    top:12px;
+    left:12px;
+    background:var(--panel);
+    backdrop-filter: blur(8px);
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:10px 12px;
+    max-width:min(92vw, 1180px);
+    box-shadow: 0 10px 30px rgba(0,0,0,.15);
+    z-index:5;
+  }
+
+  .row{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .row + .row{ margin-top:8px; }
+
+  .chip, .btn{
+    border:1px solid var(--border);
+    background:var(--chip);
+    color:var(--text);
+    padding:6px 10px;
+    font-size:13px;
+    line-height:1;
+    border-radius:999px;
+    cursor:pointer;
+    user-select:none;
+    transition: transform .04s ease, background .2s ease, border-color .2s ease;
+    white-space:nowrap;
+  }
+  .chip:hover,.btn:hover{ transform: translateY(-1px); }
+  .chip.active{
+    background: var(--chipActive);
+    color:#fff;
+    border-color:#2b6ad6;
+  }
+
+  .stat{
+    display:flex; align-items:center; gap:10px;
+    padding:4px 8px; border:1px dashed var(--border);
+    border-radius:999px; font-size:13px; color:var(--muted);
+  }
+
+  /* Progress Ring */
+  .ring{ width:28px; height:28px; display:inline-block; }
+
+  /* Tooltip */
+  .tooltip{
+    position:fixed;
+    pointer-events:none;
+    background:var(--tooltip);
+    color:var(--text);
+    font-size:12px;
+    padding:6px 8px;
+    border:1px solid var(--border);
+    border-radius:6px;
+    box-shadow: 0 10px 20px rgba(0,0,0,.12);
+    z-index:4;
+    opacity:0;
+    transform: translateY(-6px);
+    transition: opacity .12s ease, transform .12s ease;
+    max-width: 52ch;
+    white-space: nowrap;
+  }
+
+  /* Modal */
+  .modal{
+    position:fixed; inset:0; display:none; place-items:center;
+    background: rgba(0,0,0,.24); z-index:10;
+  }
+  .modal.open{ display:grid; }
+  .card{
+    width:min(760px, 92vw);
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:16px;
+    box-shadow: 0 20px 40px rgba(0,0,0,.18);
+  }
+  .card h3{ margin:0 0 10px 0; font-size:18px; color:var(--text); }
+  .card .hint{ color:var(--muted); font-size:12px; margin-bottom:8px; }
+  textarea{
+    width:100%; height:200px; resize:vertical;
+    background:var(--chip); color:var(--text); border:1px solid var(--border);
+    border-radius:10px; padding:10px; outline:none;
+  }
+  .grid{
+    display:grid; grid-template-columns: repeat(3,1fr); gap:8px; margin-top:8px;
+  }
+  .grid .field{
+    display:flex; flex-direction:column; gap:6px; font-size:12px; color:var(--muted);
+  }
+  input, select{
+    background:var(--chip); color:var(--text); border:1px solid var(--border);
+    border-radius:999px; padding:6px 10px; outline:none;
+  }
+  .actions{ display:flex; justify-content:flex-end; gap:8px; margin-top:12px; }
+
+  /* Empty state hint */
+  .hintBubble{
+    position:fixed; bottom:14px; left:50%; transform:translateX(-50%);
+    font-size:12px; color:var(--muted); background:#0e1628cc;
+    border:1px dashed var(--border); border-radius:999px; padding:6px 10px; z-index:3;
+  }
+
+  /* D3 fail banner */
+  .warn{
+    position:fixed; right:12px; top:12px; z-index:20;
+    background:#5a2; color:#fff; padding:8px 10px; border-radius:8px;
+    border:1px solid #7c4; box-shadow: 0 10px 24px rgba(0,0,0,.2);
+    display:none;
+  }
+  .warn.show{ display:block; }
+
+  /* Confetti (nice-to-have) */
+  .confetti{
+    position:fixed; left:0; top:0; width:100%; height:100%; pointer-events:none; overflow:hidden; z-index:9;
+  }
+  .confetti i{
+    position:absolute; width:8px; height:12px; background:var(--accent);
+    top:-12px;
+    animation: fall 1200ms linear forwards;
+    transform: rotate(0deg);
+  }
+  @keyframes fall{
+    to{ transform: translateY(110vh) rotate(360deg); opacity:.9; }
+  }
+
+  .label{
+    font-size:11px; fill:var(--text); text-anchor:middle; pointer-events:none;
+  }
+  .label.muted{ fill: var(--muted); opacity:.85; }
+
+  /* Hover halo polish */
+  .node circle{ transition: filter .2s ease; }
+  .node:hover circle{ filter: drop-shadow(0 0 8px rgba(80,160,255,.4)); }
+
+  .chip:focus-visible, .btn:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible{
+    outline:2px solid #2f80ed; outline-offset:2px;
+  }
+  .tiny{ font-size:10px; color:var(--muted); margin-left:8px; }
+
+  @media (prefers-reduced-motion: reduce){
+    .confetti i{ animation: none !important; }
+    .tooltip{ transition: none !important; }
+    .chip, .btn{ transition: none !important; }
+  }
+</style>
+</head>
+
+<body class="theme-light">
+  <!-- NEW: Gaming FX canvas at the very back -->
+  <canvas id="fx" aria-hidden="true"></canvas>
+
+  <!-- SVG layers -->
+  <svg id="bg" role="img" aria-label="Background world"></svg>
+  <svg id="fg" role="img" aria-label="Problem bubbles"></svg>
+
+  <!-- Floating Panel -->
+  <div class="panel" id="panel" aria-label="Controls">
+    <div class="row" id="controlRow">
+      <span class="btn" id="surpriseBtn" title="Open a random unsolved in this topic (S)">Surprise Me 💥</span>
+      <span class="btn" id="addBtn" title="Add or import problems (A)">Add / Import ➕</span>
+      <span class="btn" id="exportBtn" title="Export all as JSON">Export ⬇</span>
+      <span class="btn" id="recenterBtn" title="Restart simulation (R)">Recenter 🧭</span>
+
+      <span class="stat" id="stats">
+        <svg class="ring" viewBox="0 0 36 36" aria-hidden="true">
+          <circle cx="18" cy="18" r="15.5" fill="none" stroke="rgba(0,0,0,.08)" stroke-width="3" />
+          <circle id="ringProg" cx="18" cy="18" r="15.5" fill="none" stroke="var(--green)" stroke-linecap="round" stroke-width="3" stroke-dasharray="0 100" transform="rotate(-90 18 18)"/>
+        </svg>
+        <span id="statText">0/0 done • All</span>
+      </span>
+
+      <span class="tiny">DSA Worlds</span>
+    </div>
+    <div class="row" id="topicsRow" aria-label="Topics"></div>
+  </div>
+
+  <!-- Tooltip -->
+  <div class="tooltip" id="tooltip" role="tooltip" aria-hidden="true"></div>
+
+  <!-- Modal for Add/Import -->
+  <div class="modal" id="importModal" aria-hidden="true" role="dialog" aria-label="Import problems">
+    <div class="card">
+      <h3>Add / Import Problems</h3>
+      <div class="hint">
+        One per line. Supported formats:
+        <code>URL</code> • <code>URL;Topic</code> • <code>Title;URL;Topic;Difficulty</code>
+      </div>
+      <textarea id="importText" placeholder="https://leetcode.com/problems/two-sum&#10;https://cses.fi/problemset/task/1666;Graphs&#10;Binary Tree Paths;https://leetcode.com/problems/binary-tree-paths;Trees;Easy"></textarea>
+      <div class="grid">
+        <div class="field">
+          <label for="defaultTopic">Default Topic (optional)</label>
+          <input id="defaultTopic" list="topicList" placeholder="e.g., Arrays" />
+          <datalist id="topicList"></datalist>
+        </div>
+        <div class="field">
+          <label for="defaultDiff">Default Difficulty (optional)</label>
+          <select id="defaultDiff">
+            <option value="">—</option>
+            <option>Easy</option>
+            <option>Medium</option>
+            <option>Hard</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>&nbsp;</label>
+          <div class="hint">Duplicates by <em>link</em> are ignored automatically.</div>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn" id="cancelImport">Cancel</button>
+        <button class="btn" id="confirmImport">Add / Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Confetti layer -->
+  <div class="confetti" id="confetti" aria-hidden="true"></div>
+
+  <!-- Empty placeholder -->
+  <div class="hintBubble" id="emptyHint" style="display:none">No problems here yet. Try “Add / Import ➕”.</div>
+
+  <!-- D3 fail warning -->
+  <div class="warn" id="warn">⚠ D3 failed to load — bubbles won’t render.</div>
+
+<script>
+(function(){
+  /***** SAFETY: D3 presence *****/
+  const warn = document.getElementById('warn');
+  if(!window.d3){
+    warn.classList.add('show');
+    return;
+  }
+
+  const REDUCE_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /***** GAMING BACKGROUND (Neon grid + starfield + particles) *****/
+  const fxCanvas = document.getElementById('fx');
+  const ctx = fxCanvas.getContext('2d', { alpha: false });
+  let FX_RUNNING = false;
+
+  const FX = {
+    stars: [],
+    sparks: [],
+    t: 0,
+    mouse: { x: 0.5, y: 0.5 }, // normalized
+    DPR: Math.min(2, window.devicePixelRatio || 1),
+    resize(){
+      const w = window.innerWidth, h = window.innerHeight;
+      fxCanvas.width  = Math.floor(w * this.DPR);
+      fxCanvas.height = Math.floor(h * this.DPR);
+      fxCanvas.style.width  = w + 'px';
+      fxCanvas.style.height = h + 'px';
+    },
+    init(){
+      this.resize();
+      // stars (parallax layers)
+      this.stars = [];
+      const total = Math.min(220, Math.floor((fxCanvas.width*fxCanvas.height)/4000));
+      for(let i=0;i<total;i++){
+        this.stars.push({
+          x: Math.random(), y: Math.random(),
+          z: Math.random()*1 + 0.3,        // depth
+          s: Math.random()*1.2 + 0.3       // size base
+        });
+      }
+      // floating sparks (near field)
+      this.sparks = Array.from({length: 40}, ()=>({
+        x: Math.random(), y: Math.random(),
+        r: Math.random()*1.2+0.3,
+        a: Math.random()*Math.PI*2,
+        sp: 0.2 + Math.random()*0.6
+      }));
+    },
+    step(dt){
+      this.t += dt;
+      // gentle mouse parallax factor
+      const px = (this.mouse.x - 0.5);
+      const py = (this.mouse.y - 0.5);
+      // scroll speeds
+      const starSpeed = 0.015;   // base
+      const gridSpeed = 0.45;    // ground scroll
+      const w = fxCanvas.width, h = fxCanvas.height;
+      const cx = w/2, cy = h*0.75;
+
+      // clear with slight vignette
+      ctx.fillStyle = '#05060a';
+      ctx.fillRect(0,0,w,h);
+
+      // backdrop radial glow
+      const g = ctx.createRadialGradient(cx, h*0.2, 10, cx, h*0.2, Math.max(w,h)*0.7);
+      g.addColorStop(0, 'rgba(96,165,250,0.18)'); // blue glow
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g; ctx.fillRect(0,0,w,h);
+
+      /* ---- STARFIELD (parallax) ---- */
+      for(const s of this.stars){
+        s.y += (starSpeed * (0.6 + s.z*0.8)) * dt;
+        s.x += px * 0.0008 * s.z * dt;
+        if(s.y > 1) { s.y = 0; s.x = Math.random(); s.z = Math.random()*1+0.3; }
+        const sx = (s.x * w), sy = (s.y * h);
+        const size = s.s * this.DPR * (0.5 + s.z*0.9);
+        ctx.fillStyle = 'rgba(255,255,255,0.85)';
+        ctx.fillRect(sx, sy, size, size);
+      }
+
+      /* ---- NEON GRID (retro floor) ---- */
+      const horizon = h*0.42;
+      const rows = 18, cols = 28;
+      const hue = (this.t*10) % 360;
+      ctx.strokeStyle = `hsla(${hue}, 85%, 62%, 0.38)`;
+      ctx.lineWidth = 1 * this.DPR;
+
+      // verticals
+      for(let i= -cols; i<=cols; i++){
+        const nx = i/cols; // -1..1
+        const x1 = cx + (nx - px*0.3)*w*0.6;
+        const x2 = cx + (nx - px*0.3)*w*2.8;
+        ctx.beginPath();
+        ctx.moveTo(x1, horizon);
+        ctx.lineTo(x2, h);
+        ctx.stroke();
+      }
+      // horizontals (scrolling)
+      for(let r=0; r<rows; r++){
+        const z = (r/rows);
+        const scroll = ((this.t*gridSpeed + r*0.2) % 1);
+        const y = horizon + (h - horizon) * Math.pow(z, 1.8 + py*0.6) + scroll*12*this.DPR;
+        ctx.beginPath();
+        ctx.moveTo(cx - w*1.5, y);
+        ctx.lineTo(cx + w*1.5, y);
+        ctx.stroke();
+      }
+
+      // neon haze at horizon
+      const haze = ctx.createLinearGradient(0,horizon,0,horizon+120*this.DPR);
+      haze.addColorStop(0, `hsla(${hue}, 90%, 60%, 0.25)`);
+      haze.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = haze;
+      ctx.fillRect(0,horizon,w,200*this.DPR);
+
+      /* ---- NEAR-FIELD SPARKS ---- */
+      ctx.fillStyle = 'rgba(164, 255, 196, 0.9)';
+      for(const p of this.sparks){
+        p.a += p.sp*0.008*dt;
+        p.x += Math.cos(p.a)*0.0005*dt + px*0.0008*dt;
+        p.y += Math.sin(p.a)*0.0007*dt + py*0.0006*dt;
+        if(p.x<0) p.x=1; if(p.x>1) p.x=0; if(p.y<0) p.y=1; if(p.y>1) p.y=0;
+        const x = p.x*w, y = p.y*h*0.9;
+        ctx.beginPath();
+        ctx.arc(x, y, p.r*this.DPR, 0, Math.PI*2);
+        ctx.fill();
+      }
+
+      // subtle scanlines
+      ctx.globalAlpha = 0.06;
+      ctx.fillStyle = '#000';
+      for(let y=0;y<h;y+=2*this.DPR) ctx.fillRect(0,y,w,1*this.DPR);
+      ctx.globalAlpha = 1;
+    }
+  };
+
+  function startGamingFX(){
+    if(FX_RUNNING || REDUCE_MOTION) return;
+    FX_RUNNING = true;
+    FX.init();
+    let last = performance.now();
+    function loop(now){
+      if(!FX_RUNNING) return;
+      const dt = Math.min(2.2, (now - last)/16.67);
+      last = now;
+      FX.step(dt);
+      requestAnimationFrame(loop);
+    }
+    requestAnimationFrame(loop);
+  }
+
+  function stopGamingFX(){ FX_RUNNING = false; }
+
+  window.addEventListener('resize', ()=> { FX.resize(); });
+  window.addEventListener('pointermove', (e)=>{
+    FX.mouse.x = Math.max(0, Math.min(1, e.clientX / window.innerWidth));
+    FX.mouse.y = Math.max(0, Math.min(1, e.clientY / window.innerHeight));
+  });
+
+  // Respect reduced motion
+  function renderStaticGamingFrame(){
+    FX.init();
+    FX.step(0);
+  }
+
+  if(REDUCE_MOTION){ renderStaticGamingFrame(); } else { startGamingFX(); }
+
+  /***** Constants & Utilities *****/
+  const LS_KEY = 'dsaWorlds_v1';
+  const svgBG = d3.select('#bg');
+  const svgFG = d3.select('#fg');
+  const tooltip = document.getElementById('tooltip');
+  const confettiRoot = document.getElementById('confetti');
+  const emptyHint = document.getElementById('emptyHint');
+
+  /* Requested topics — normalized + pretty titles */
+  const CANON_TOPICS = [
+    "All",
+    "Arrays","Strings","Two Pointers","Graphs","Trees","DP","Recursion","Bit Manipulation",
+    "Stack","Queue","Binary Search","Linked List","Heap","Greedy","Intervals",
+    "Math","Implementation","Sorting"
+  ];
+
+  /* Accept user typos/variants and map to canonical */
+  const TOPIC_ALIASES = new Map([
+    ["graph","Graphs"],["graphs","Graphs"],
+    ["tree","Trees"],["trees","Trees"],
+    ["2 pointers","Two Pointers"],["two pointers","Two Pointers"],["two-pointers","Two Pointers"],
+    ["dp","DP"],
+    ["recursion","Recursion"],
+    ["bit manipulation","Bit Manipulation"],["bits","Bit Manipulation"],
+    ["stack","Stack"],["stacks","Stack"],
+    ["queue","Queue"],["queues","Queue"],
+    ["binary serach","Binary Search"],["binary search","Binary Search"],
+    ["linked list","Linked List"],["linked lists","Linked List"],
+    ["heap","Heap"],["heaps","Heap","priority queue","Heap"],
+    ["grredy","Greedy"],["greedy","Greedy"],
+    ["interval","Intervals"],["intervals","Intervals"],
+    ["math","Math"],
+    ["implementation","Implementation"],["implementation of structures","Implementation"],["structures","Implementation"],["data structures","Implementation"],["mathimplementation of structures","Implementation"],
+    ["sorting","Sorting"],
+    ["arrays","Arrays"],["strings","Strings"]
+  ]);
+
+  // Difficulty → radius
+  const diffRadius = { Easy: 26, Medium: 32, Hard: 38, Unknown: 30 };
+
+  // Colors (THEMEABLE VIA CSS VARS)
+  const nodeStroke = 'var(--nodeStroke)';
+  const nodeFill = 'var(--node)';
+  const nodeDoneFill = 'var(--nodeDone)';
+
+  // Generate ID
+  const uid = () => 'id_' + Math.random().toString(36).slice(2,9);
+
+  // LocalStorage helpers
+  function loadData(){
+    const raw = localStorage.getItem(LS_KEY);
+    if(raw){
+      try{
+        const parsed = JSON.parse(raw);
+        // Backfill any new fields
+        return parsed.map(d=>({...d, diff: d.diff || 'Unknown'}));
+      }catch(e){
+        console.warn('Bad data, clearing.'); localStorage.removeItem(LS_KEY);
+      }
+    }
+    // Seed with examples across the requested topics
+    const seed = [
+  /* ===================== Arrays ===================== */
+  {id:uid(), title:"Contains Duplicate", link:"https://leetcode.com/problems/contains-duplicate", topic:"Arrays", diff:"Easy", done:false},
+  {id:uid(), title:"Valid Anagram", link:"https://leetcode.com/problems/valid-anagram", topic:"Arrays", diff:"Easy", done:false},
+  {id:uid(), title:"Two Sum", link:"https://leetcode.com/problems/two-sum", topic:"Arrays", diff:"Easy", done:false},
+  {id:uid(), title:"Group Anagrams", link:"https://leetcode.com/problems/group-anagrams", topic:"Arrays", diff:"Medium", done:false},
+  {id:uid(), title:"Top K Frequent Elements", link:"https://leetcode.com/problems/top-k-frequent-elements", topic:"Arrays", diff:"Medium", done:false},
+  {id:uid(), title:"Product of Array Except Self", link:"https://leetcode.com/problems/product-of-array-except-self", topic:"Arrays", diff:"Medium", done:false},
+  {id:uid(), title:"Valid Sudoku", link:"https://leetcode.com/problems/valid-sudoku", topic:"Arrays", diff:"Medium", done:false},
+  {id:uid(), title:"Encode and Decode Strings", link:"https://leetcode.com/problems/encode-and-decode-strings", topic:"Arrays", diff:"Medium", done:false},
+  {id:uid(), title:"Longest Consecutive Sequence", link:"https://leetcode.com/problems/longest-consecutive-sequence", topic:"Arrays", diff:"Medium", done:false},
+  {id:uid(), title:"Set Matrix Zeroes", link:"https://leetcode.com/problems/set-matrix-zeroes", topic:"Arrays", diff:"Medium", done:false}, // (also listed under Math; kept here)
+  {id:uid(), title:"Pascal's Triangle", link:"https://leetcode.com/problems/pascals-triangle", topic:"Arrays", diff:"Easy", done:false},
+  {id:uid(), title:"Next Permutation", link:"https://leetcode.com/problems/next-permutation", topic:"Arrays", diff:"Medium", done:false},
+  {id:uid(), title:"Maximum Subarray (Kadane)", link:"https://leetcode.com/problems/maximum-subarray", topic:"Arrays", diff:"Easy", done:false}, // (also in Greedy list; kept here)
+  {id:uid(), title:"Sort Colors (0,1,2)", link:"https://leetcode.com/problems/sort-colors", topic:"Arrays", diff:"Medium", done:false},
+  {id:uid(), title:"Best Time to Buy and Sell Stock", link:"https://leetcode.com/problems/best-time-to-buy-and-sell-stock", topic:"Arrays", diff:"Easy", done:false},
+
+  /* ===================== Two Pointers ===================== */
+  {id:uid(), title:"Valid Palindrome", link:"https://leetcode.com/problems/valid-palindrome", topic:"Two Pointers", diff:"Easy", done:false},
+  {id:uid(), title:"Two Sum II - Input Array Is Sorted", link:"https://leetcode.com/problems/two-sum-ii-input-array-is-sorted", topic:"Two Pointers", diff:"Medium", done:false},
+  {id:uid(), title:"3Sum", link:"https://leetcode.com/problems/3sum", topic:"Two Pointers", diff:"Medium", done:false},
+  {id:uid(), title:"Container With Most Water", link:"https://leetcode.com/problems/container-with-most-water", topic:"Two Pointers", diff:"Medium", done:false},
+  {id:uid(), title:"Trapping Rain Water", link:"https://leetcode.com/problems/trapping-rain-water", topic:"Two Pointers", diff:"Hard", done:false},
+  {id:uid(), title:"Remove Duplicates from Sorted Array", link:"https://leetcode.com/problems/remove-duplicates-from-sorted-array", topic:"Two Pointers", diff:"Easy", done:false},
+
+  /* ===================== Stack ===================== */
+  {id:uid(), title:"Valid Parentheses", link:"https://leetcode.com/problems/valid-parentheses", topic:"Stack", diff:"Easy", done:false},
+  {id:uid(), title:"Min Stack", link:"https://leetcode.com/problems/min-stack", topic:"Stack", diff:"Medium", done:false},
+  {id:uid(), title:"Evaluate Reverse Polish Notation", link:"https://leetcode.com/problems/evaluate-reverse-polish-notation", topic:"Stack", diff:"Medium", done:false},
+  {id:uid(), title:"Generate Parentheses", link:"https://leetcode.com/problems/generate-parentheses", topic:"Stack", diff:"Medium", done:false},
+  {id:uid(), title:"Daily Temperatures", link:"https://leetcode.com/problems/daily-temperatures", topic:"Stack", diff:"Medium", done:false},
+  {id:uid(), title:"Car Fleet", link:"https://leetcode.com/problems/car-fleet", topic:"Stack", diff:"Medium", done:false},
+  {id:uid(), title:"Largest Rectangle in Histogram", link:"https://leetcode.com/problems/largest-rectangle-in-histogram", topic:"Stack", diff:"Hard", done:false},
+
+  /* ===================== Binary Search ===================== */
+  {id:uid(), title:"Binary Search", link:"https://leetcode.com/problems/binary-search", topic:"Binary Search", diff:"Easy", done:false},
+  {id:uid(), title:"Search a 2D Matrix", link:"https://leetcode.com/problems/search-a-2d-matrix", topic:"Binary Search", diff:"Medium", done:false},
+  {id:uid(), title:"Koko Eating Bananas", link:"https://leetcode.com/problems/koko-eating-bananas", topic:"Binary Search", diff:"Medium", done:false},
+  {id:uid(), title:"Find Minimum in Rotated Sorted Array", link:"https://leetcode.com/problems/find-minimum-in-rotated-sorted-array", topic:"Binary Search", diff:"Medium", done:false},
+  {id:uid(), title:"Search in Rotated Sorted Array", link:"https://leetcode.com/problems/search-in-rotated-sorted-array", topic:"Binary Search", diff:"Medium", done:false},
+  {id:uid(), title:"Time Based Key-Value Store", link:"https://leetcode.com/problems/time-based-key-value-store", topic:"Binary Search", diff:"Medium", done:false},
+  {id:uid(), title:"Median of Two Sorted Arrays", link:"https://leetcode.com/problems/median-of-two-sorted-arrays", topic:"Binary Search", diff:"Hard", done:false},
+
+  /* ===================== Linked List ===================== */
+  {id:uid(), title:"Reverse Linked List", link:"https://leetcode.com/problems/reverse-linked-list", topic:"Linked List", diff:"Easy", done:false},
+  {id:uid(), title:"Merge Two Sorted Lists", link:"https://leetcode.com/problems/merge-two-sorted-lists", topic:"Linked List", diff:"Easy", done:false},
+  {id:uid(), title:"Linked List Cycle", link:"https://leetcode.com/problems/linked-list-cycle", topic:"Linked List", diff:"Easy", done:false},
+  {id:uid(), title:"Reorder List", link:"https://leetcode.com/problems/reorder-list", topic:"Linked List", diff:"Medium", done:false},
+  {id:uid(), title:"Remove Nth Node From End of List", link:"https://leetcode.com/problems/remove-nth-node-from-end-of-list", topic:"Linked List", diff:"Medium", done:false},
+  {id:uid(), title:"Copy List with Random Pointer", link:"https://leetcode.com/problems/copy-list-with-random-pointer", topic:"Linked List", diff:"Medium", done:false},
+  {id:uid(), title:"Add Two Numbers", link:"https://leetcode.com/problems/add-two-numbers", topic:"Linked List", diff:"Medium", done:false},
+  {id:uid(), title:"Find the Duplicate Number", link:"https://leetcode.com/problems/find-the-duplicate-number", topic:"Linked List", diff:"Medium", done:false},
+  {id:uid(), title:"LRU Cache", link:"https://leetcode.com/problems/lru-cache", topic:"Linked List", diff:"Medium", done:false},
+  {id:uid(), title:"Merge k Sorted Lists", link:"https://leetcode.com/problems/merge-k-sorted-lists", topic:"Linked List", diff:"Hard", done:false},
+  {id:uid(), title:"Reverse Nodes in k-Group", link:"https://leetcode.com/problems/reverse-nodes-in-k-group", topic:"Linked List", diff:"Hard", done:false},
+
+  /* ===================== Trees ===================== */
+  {id:uid(), title:"Invert Binary Tree", link:"https://leetcode.com/problems/invert-binary-tree", topic:"Trees", diff:"Easy", done:false},
+  {id:uid(), title:"Maximum Depth of Binary Tree", link:"https://leetcode.com/problems/maximum-depth-of-binary-tree", topic:"Trees", diff:"Easy", done:false},
+  {id:uid(), title:"Diameter of Binary Tree", link:"https://leetcode.com/problems/diameter-of-binary-tree", topic:"Trees", diff:"Easy", done:false},
+  {id:uid(), title:"Balanced Binary Tree", link:"https://leetcode.com/problems/balanced-binary-tree", topic:"Trees", diff:"Easy", done:false},
+  {id:uid(), title:"Same Tree", link:"https://leetcode.com/problems/same-tree", topic:"Trees", diff:"Easy", done:false},
+  {id:uid(), title:"Subtree of Another Tree", link:"https://leetcode.com/problems/subtree-of-another-tree", topic:"Trees", diff:"Easy", done:false},
+  {id:uid(), title:"Lowest Common Ancestor of a BST", link:"https://leetcode.com/problems/lowest-common-ancestor-of-a-binary-search-tree", topic:"Trees", diff:"Medium", done:false},
+  {id:uid(), title:"Binary Tree Level Order Traversal", link:"https://leetcode.com/problems/binary-tree-level-order-traversal", topic:"Trees", diff:"Medium", done:false},
+  {id:uid(), title:"Binary Tree Right Side View", link:"https://leetcode.com/problems/binary-tree-right-side-view", topic:"Trees", diff:"Medium", done:false},
+  {id:uid(), title:"Count Good Nodes in Binary Tree", link:"https://leetcode.com/problems/count-good-nodes-in-binary-tree", topic:"Trees", diff:"Medium", done:false},
+  {id:uid(), title:"Validate Binary Search Tree", link:"https://leetcode.com/problems/validate-binary-search-tree", topic:"Trees", diff:"Medium", done:false},
+  {id:uid(), title:"Kth Smallest Element in a BST", link:"https://leetcode.com/problems/kth-smallest-element-in-a-bst", topic:"Trees", diff:"Medium", done:false},
+  {id:uid(), title:"Construct Binary Tree from Preorder and Inorder Traversal", link:"https://leetcode.com/problems/construct-binary-tree-from-preorder-and-inorder-traversal", topic:"Trees", diff:"Medium", done:false},
+  {id:uid(), title:"Binary Tree Maximum Path Sum", link:"https://leetcode.com/problems/binary-tree-maximum-path-sum", topic:"Trees", diff:"Hard", done:false},
+  {id:uid(), title:"Serialize and Deserialize Binary Tree", link:"https://leetcode.com/problems/serialize-and-deserialize-binary-tree", topic:"Trees", diff:"Hard", done:false},
+
+  /* ===================== Heap ===================== */
+  {id:uid(), title:"Kth Largest Element in a Stream", link:"https://leetcode.com/problems/kth-largest-element-in-a-stream", topic:"Heap", diff:"Easy", done:false},
+  {id:uid(), title:"Last Stone Weight", link:"https://leetcode.com/problems/last-stone-weight", topic:"Heap", diff:"Easy", done:false},
+  {id:uid(), title:"K Closest Points to Origin", link:"https://leetcode.com/problems/k-closest-points-to-origin", topic:"Heap", diff:"Medium", done:false},
+  {id:uid(), title:"Kth Largest Element in an Array", link:"https://leetcode.com/problems/kth-largest-element-in-an-array", topic:"Heap", diff:"Medium", done:false},
+  {id:uid(), title:"Task Scheduler", link:"https://leetcode.com/problems/task-scheduler", topic:"Heap", diff:"Medium", done:false},
+  {id:uid(), title:"Design Twitter", link:"https://leetcode.com/problems/design-twitter", topic:"Heap", diff:"Medium", done:false},
+  {id:uid(), title:"Find Median from Data Stream", link:"https://leetcode.com/problems/find-median-from-data-stream", topic:"Heap", diff:"Hard", done:false},
+
+  /* ===================== Recursion (Backtracking) ===================== */
+  {id:uid(), title:"Subsets", link:"https://leetcode.com/problems/subsets", topic:"Recursion", diff:"Medium", done:false},
+  {id:uid(), title:"Combination Sum", link:"https://leetcode.com/problems/combination-sum", topic:"Recursion", diff:"Medium", done:false},
+  {id:uid(), title:"Combination Sum II", link:"https://leetcode.com/problems/combination-sum-ii", topic:"Recursion", diff:"Medium", done:false},
+  {id:uid(), title:"Permutations", link:"https://leetcode.com/problems/permutations", topic:"Recursion", diff:"Medium", done:false},
+  {id:uid(), title:"Subsets II", link:"https://leetcode.com/problems/subsets-ii", topic:"Recursion", diff:"Medium", done:false},
+  {id:uid(), title:"Word Search", link:"https://leetcode.com/problems/word-search", topic:"Recursion", diff:"Medium", done:false},
+  {id:uid(), title:"Palindrome Partitioning", link:"https://leetcode.com/problems/palindrome-partitioning", topic:"Recursion", diff:"Medium", done:false},
+  {id:uid(), title:"Letter Combinations of a Phone Number", link:"https://leetcode.com/problems/letter-combinations-of-a-phone-number", topic:"Recursion", diff:"Medium", done:false},
+  {id:uid(), title:"N-Queens", link:"https://leetcode.com/problems/n-queens", topic:"Recursion", diff:"Hard", done:false},
+
+  /* ===================== Graphs ===================== */
+  {id:uid(), title:"Number of Islands", link:"https://leetcode.com/problems/number-of-islands", topic:"Graphs", diff:"Medium", done:false},
+  {id:uid(), title:"Max Area of Island", link:"https://leetcode.com/problems/max-area-of-island", topic:"Graphs", diff:"Medium", done:false},
+  {id:uid(), title:"Clone Graph", link:"https://leetcode.com/problems/clone-graph", topic:"Graphs", diff:"Medium", done:false},
+  {id:uid(), title:"Walls and Gates", link:"https://leetcode.com/problems/walls-and-gates", topic:"Graphs", diff:"Medium", done:false}, // Premium
+  {id:uid(), title:"Rotting Oranges", link:"https://leetcode.com/problems/rotting-oranges", topic:"Graphs", diff:"Medium", done:false},
+  {id:uid(), title:"Pacific Atlantic Water Flow", link:"https://leetcode.com/problems/pacific-atlantic-water-flow", topic:"Graphs", diff:"Medium", done:false},
+  {id:uid(), title:"Surrounded Regions", link:"https://leetcode.com/problems/surrounded-regions", topic:"Graphs", diff:"Medium", done:false},
+  {id:uid(), title:"Course Schedule", link:"https://leetcode.com/problems/course-schedule", topic:"Graphs", diff:"Medium", done:false},
+  {id:uid(), title:"Course Schedule II", link:"https://leetcode.com/problems/course-schedule-ii", topic:"Graphs", diff:"Medium", done:false},
+  {id:uid(), title:"Graph Valid Tree", link:"https://leetcode.com/problems/graph-valid-tree", topic:"Graphs", diff:"Medium", done:false}, // Premium
+  {id:uid(), title:"Number of Connected Components in an Undirected Graph", link:"https://leetcode.com/problems/number-of-connected-components-in-an-undirected-graph", topic:"Graphs", diff:"Medium", done:false}, // Premium
+  {id:uid(), title:"Redundant Connection", link:"https://leetcode.com/problems/redundant-connection", topic:"Graphs", diff:"Medium", done:false},
+  {id:uid(), title:"Word Ladder", link:"https://leetcode.com/problems/word-ladder", topic:"Graphs", diff:"Hard", done:false},
+  {id:uid(), title:"Network Delay Time", link:"https://leetcode.com/problems/network-delay-time", topic:"Graphs", diff:"Medium", done:false},
+  {id:uid(), title:"Reconstruct Itinerary", link:"https://leetcode.com/problems/reconstruct-itinerary", topic:"Graphs", diff:"Hard", done:false},
+  {id:uid(), title:"Minimum Cost to Connect All Points", link:"https://leetcode.com/problems/min-cost-to-connect-all-points", topic:"Graphs", diff:"Medium", done:false},
+  {id:uid(), title:"Swim in Rising Water", link:"https://leetcode.com/problems/swim-in-rising-water", topic:"Graphs", diff:"Hard", done:false},
+  {id:uid(), title:"Alien Dictionary", link:"https://leetcode.com/problems/alien-dictionary", topic:"Graphs", diff:"Hard", done:false}, // Premium
+  {id:uid(), title:"Cheapest Flights Within K Stops", link:"https://leetcode.com/problems/cheapest-flights-within-k-stops", topic:"Graphs", diff:"Medium", done:false},
+
+  /* ===================== DP (1D + 2D combined) ===================== */
+  {id:uid(), title:"Climbing Stairs", link:"https://leetcode.com/problems/climbing-stairs", topic:"DP", diff:"Easy", done:false},
+  {id:uid(), title:"Min Cost Climbing Stairs", link:"https://leetcode.com/problems/min-cost-climbing-stairs", topic:"DP", diff:"Easy", done:false},
+  {id:uid(), title:"House Robber", link:"https://leetcode.com/problems/house-robber", topic:"DP", diff:"Medium", done:false},
+  {id:uid(), title:"House Robber II", link:"https://leetcode.com/problems/house-robber-ii", topic:"DP", diff:"Medium", done:false},
+  {id:uid(), title:"Longest Palindromic Substring", link:"https://leetcode.com/problems/longest-palindromic-substring", topic:"DP", diff:"Medium", done:false},
+  {id:uid(), title:"Palindromic Substrings", link:"https://leetcode.com/problems/palindromic-substrings", topic:"DP", diff:"Medium", done:false},
+  {id:uid(), title:"Decode Ways", link:"https://leetcode.com/problems/decode-ways", topic:"DP", diff:"Medium", done:false},
+  {id:uid(), title:"Coin Change", link:"https://leetcode.com/problems/coin-change", topic:"DP", diff:"Medium", done:false},
+  {id:uid(), title:"Maximum Product Subarray", link:"https://leetcode.com/problems/maximum-product-subarray", topic:"DP", diff:"Medium", done:false},
+  {id:uid(), title:"Word Break", link:"https://leetcode.com/problems/word-break", topic:"DP", diff:"Medium", done:false},
+  {id:uid(), title:"Longest Increasing Subsequence", link:"https://leetcode.com/problems/longest-increasing-subsequence", topic:"DP", diff:"Medium", done:false},
+  {id:uid(), title:"Partition Equal Subset Sum", link:"https://leetcode.com/problems/partition-equal-subset-sum", topic:"DP", diff:"Medium", done:false},
+
+  {id:uid(), title:"Unique Paths", link:"https://leetcode.com/problems/unique-paths", topic:"DP", diff:"Medium", done:false},
+  {id:uid(), title:"Longest Common Subsequence", link:"https://leetcode.com/problems/longest-common-subsequence", topic:"DP", diff:"Medium", done:false},
+  {id:uid(), title:"Best Time to Buy and Sell Stock with Cooldown", link:"https://leetcode.com/problems/best-time-to-buy-and-sell-stock-with-cooldown", topic:"DP", diff:"Medium", done:false},
+  {id:uid(), title:"Coin Change II", link:"https://leetcode.com/problems/coin-change-ii", topic:"DP", diff:"Medium", done:false},
+  {id:uid(), title:"Target Sum", link:"https://leetcode.com/problems/target-sum", topic:"DP", diff:"Medium", done:false},
+  {id:uid(), title:"Interleaving String", link:"https://leetcode.com/problems/interleaving-string", topic:"DP", diff:"Medium", done:false},
+  {id:uid(), title:"Longest Increasing Path in a Matrix", link:"https://leetcode.com/problems/longest-increasing-path-in-a-matrix", topic:"DP", diff:"Hard", done:false},
+  {id:uid(), title:"Distinct Subsequences", link:"https://leetcode.com/problems/distinct-subsequences", topic:"DP", diff:"Hard", done:false},
+  {id:uid(), title:"Edit Distance", link:"https://leetcode.com/problems/edit-distance", topic:"DP", diff:"Hard", done:false},
+  {id:uid(), title:"Burst Balloons", link:"https://leetcode.com/problems/burst-balloons", topic:"DP", diff:"Hard", done:false},
+  {id:uid(), title:"Regular Expression Matching", link:"https://leetcode.com/problems/regular-expression-matching", topic:"DP", diff:"Hard", done:false},
+
+  /* ===================== Greedy ===================== */
+  // Note: "Maximum Subarray" was already added in Arrays (Kadane) to avoid duplicate by link.
+  {id:uid(), title:"Jump Game", link:"https://leetcode.com/problems/jump-game", topic:"Greedy", diff:"Medium", done:false},
+  {id:uid(), title:"Jump Game II", link:"https://leetcode.com/problems/jump-game-ii", topic:"Greedy", diff:"Medium", done:false},
+  {id:uid(), title:"Gas Station", link:"https://leetcode.com/problems/gas-station", topic:"Greedy", diff:"Medium", done:false},
+  {id:uid(), title:"Hand of Straights", link:"https://leetcode.com/problems/hand-of-straights", topic:"Greedy", diff:"Medium", done:false},
+  {id:uid(), title:"Merge Triplets to Form Target Triplet", link:"https://leetcode.com/problems/merge-triplets-to-form-target-triplet", topic:"Greedy", diff:"Medium", done:false},
+  {id:uid(), title:"Partition Labels", link:"https://leetcode.com/problems/partition-labels", topic:"Greedy", diff:"Medium", done:false},
+  {id:uid(), title:"Valid Parenthesis String", link:"https://leetcode.com/problems/valid-parenthesis-string", topic:"Greedy", diff:"Medium", done:false},
+
+  /* ===================== Intervals ===================== */
+  {id:uid(), title:"Insert Interval", link:"https://leetcode.com/problems/insert-interval", topic:"Intervals", diff:"Medium", done:false},
+  {id:uid(), title:"Merge Intervals", link:"https://leetcode.com/problems/merge-intervals", topic:"Intervals", diff:"Medium", done:false},
+  {id:uid(), title:"Non-overlapping Intervals", link:"https://leetcode.com/problems/non-overlapping-intervals", topic:"Intervals", diff:"Medium", done:false},
+  {id:uid(), title:"Meeting Rooms", link:"https://leetcode.com/problems/meeting-rooms", topic:"Intervals", diff:"Easy", done:false}, // Premium
+  {id:uid(), title:"Meeting Rooms II", link:"https://leetcode.com/problems/meeting-rooms-ii", topic:"Intervals", diff:"Medium", done:false}, // Premium
+  {id:uid(), title:"Minimum Interval to Include Each Query", link:"https://leetcode.com/problems/minimum-interval-to-include-each-query", topic:"Intervals", diff:"Hard", done:false},
+
+  /* ===================== Math ===================== */
+  // Note: "Set Matrix Zeroes" lives in Arrays to avoid duplicate by link.
+  {id:uid(), title:"Rotate Image", link:"https://leetcode.com/problems/rotate-image", topic:"Math", diff:"Medium", done:false},
+  {id:uid(), title:"Spiral Matrix", link:"https://leetcode.com/problems/spiral-matrix", topic:"Math", diff:"Medium", done:false},
+  {id:uid(), title:"Happy Number", link:"https://leetcode.com/problems/happy-number", topic:"Math", diff:"Easy", done:false},
+  {id:uid(), title:"Plus One", link:"https://leetcode.com/problems/plus-one", topic:"Math", diff:"Easy", done:false},
+  {id:uid(), title:"Pow(x, n)", link:"https://leetcode.com/problems/powx-n", topic:"Math", diff:"Medium", done:false},
+  {id:uid(), title:"Multiply Strings", link:"https://leetcode.com/problems/multiply-strings", topic:"Math", diff:"Medium", done:false},
+  {id:uid(), title:"Detect Squares", link:"https://leetcode.com/problems/detect-squares", topic:"Math", diff:"Medium", done:false},
+
+  /* ===================== Bit Manipulation ===================== */
+  {id:uid(), title:"Single Number", link:"https://leetcode.com/problems/single-number", topic:"Bit Manipulation", diff:"Easy", done:false},
+  {id:uid(), title:"Number of 1 Bits", link:"https://leetcode.com/problems/number-of-1-bits", topic:"Bit Manipulation", diff:"Easy", done:false},
+  {id:uid(), title:"Counting Bits", link:"https://leetcode.com/problems/counting-bits", topic:"Bit Manipulation", diff:"Easy", done:false},
+  {id:uid(), title:"Reverse Bits", link:"https://leetcode.com/problems/reverse-bits", topic:"Bit Manipulation", diff:"Easy", done:false},
+  {id:uid(), title:"Missing Number", link:"https://leetcode.com/problems/missing-number", topic:"Bit Manipulation", diff:"Easy", done:false},
+  {id:uid(), title:"Sum of Two Integers", link:"https://leetcode.com/problems/sum-of-two-integers", topic:"Bit Manipulation", diff:"Medium", done:false},
+  {id:uid(), title:"Reverse Integer", link:"https://leetcode.com/problems/reverse-integer", topic:"Bit Manipulation", diff:"Medium", done:false},
+];
+    saveData(seed);
+    return seed;
+  }
+  function saveData(data){ localStorage.setItem(LS_KEY, JSON.stringify(data)); }
+
+  // Global app state
+  let data = loadData();
+
+  // gather topics from data + canonical order
+  function computeTopics(){
+    const seen = new Set(data.map(d=>d.topic));
+    const ordered = ["All", ...CANON_TOPICS.filter(t=>t!=="All"), ...Array.from(seen)];
+    return Array.from(new Set(ordered)); // preserve order
+  }
+  let topics = computeTopics();
+  let currentTopic = "All";
+
+  // Dimensions
+  const size = () => ({ w: window.innerWidth, h: window.innerHeight });
+
+  /***** Animated Backgrounds — timer management *****/
+  let activeTimers = [];
+  function clearTimers(){
+    for(const t of activeTimers){ if(t && t.stop) t.stop(); }
+    activeTimers = [];
+  }
+  function clearBG(){ clearTimers(); svgBG.selectAll('*').remove(); }
+
+  function drawGradient(defs, id, stops, horizontal=false){
+    const g = defs.append('linearGradient').attr('id', id)
+      .attr('x1','0%').attr('y1','0%')
+      .attr('x2', horizontal?'100%':'0%').attr('y2', horizontal?'0%':'100%');
+    stops.forEach(s=> g.append('stop').attr('offset', s.offset).attr('stop-color', s.color).attr('stop-opacity', s.opacity==null?1:s.opacity));
+    return `url(#${id})`;
+  }
+
+  /* --- Worlds (SVG art only; each topic unique) --- */
+  /* ARRAYS → pinkish abstract: blush stripes + floating rosy blobs */
+  function worldArrays(){
+    clearBG();
+    const {w,h}=size();
+    const defs = svgBG.append('defs');
+
+    // blush-white background
+    svgBG.append('rect').attr('width',w).attr('height',h).attr('fill','#fff7fb');
+
+    // very faint diagonal stripes (rose tint)
+    const stripeSpacing = 64;
+    const stripeGroup = svgBG.append('g').attr('opacity',0.12);
+    for(let x=-h; x<w+h; x+=stripeSpacing){
+      stripeGroup.append('line')
+        .attr('x1',x).attr('y1',0)
+        .attr('x2',x-h).attr('y2',h)
+        .attr('stroke','#f5a5c8'); /* soft rose */
+    }
+
+    // pink/peach/lavender radial gradients for blobs
+    const grad1 = defs.append('radialGradient').attr('id','arrPink1');
+    grad1.append('stop').attr('offset','0%').attr('stop-color','#fbcfe8');  // pink-200
+    grad1.append('stop').attr('offset','100%').attr('stop-color','#f472b6').attr('stop-opacity',0.0); // pink-400 fade
+
+    const grad2 = defs.append('radialGradient').attr('id','arrPink2');
+    grad2.append('stop').attr('offset','0%').attr('stop-color','#fecdd3');  // peach-200
+    grad2.append('stop').attr('offset','100%').attr('stop-color','#fb7185').attr('stop-opacity',0.0); // rose-400 fade
+
+    const grad3 = defs.append('radialGradient').attr('id','arrPink3');
+    grad3.append('stop').attr('offset','0%').attr('stop-color','#e9d5ff');  // lavender-200
+    grad3.append('stop').attr('offset','100%').attr('stop-color','#c084fc').attr('stop-opacity',0.0); // purple-300 fade
+
+    // floating blobs
+    const blobIds = ['arrPink1','arrPink2','arrPink3'];
+    const blobs = [];
+    function addBlob(cx, cy, r, id){
+      const c = svgBG.append('circle').attr('cx',cx).attr('cy',cy).attr('r',r).attr('fill',`url(#${id})`).attr('opacity',0.95);
+      blobs.push({c, cx, cy, r, phase: Math.random()*Math.PI*2});
+    }
+
+    const n = 9;
+    for(let i=0;i<n;i++){
+      const id = blobIds[i % blobIds.length];
+      addBlob(Math.random()*w, Math.random()*h, 120+Math.random()*160, id);
+    }
+
+    if(!REDUCE_MOTION){
+      const timer = d3.timer((t)=>{
+        blobs.forEach((b,i)=>{
+          const dx = Math.sin((t/1500)+b.phase+i)*7;
+          const dy = Math.cos((t/1200)+b.phase-i)*6;
+          b.c.attr('cx', b.cx + dx).attr('cy', b.cy + dy);
+        });
+      });
+      activeTimers.push(timer);
+    }
+
+    // soft vignette for depth
+    const vign = defs.append('radialGradient').attr('id','arrPinkVign').attr('cx','50%').attr('cy','50%');
+    vign.append('stop').attr('offset','60%').attr('stop-color','#ffffff').attr('stop-opacity',0);
+    vign.append('stop').attr('offset','100%').attr('stop-color','#000000').attr('stop-opacity',0.05);
+    svgBG.append('rect').attr('width',w).attr('height',h).attr('fill','url(#arrPinkVign)');
+  }
+
+  // Strings
+  function worldStrings(){
+    clearBG(); const {w,h}=size(); const defs=svgBG.append('defs');
+    svgBG.append('rect').attr('width',w).attr('height',h).attr('fill',drawGradient(defs,'skyBlue',[
+      {offset:'0%', color:'#77aaff'},
+      {offset:'100%', color:'#cfe9ff'}
+    ]));
+    // Clouds
+    const clouds=[];
+    const makeCloud=(x,y,s)=>{
+      const g=svgBG.append('g').attr('transform',`translate(${x},${y}) scale(${s})`).attr('opacity',0.92);
+      g.append('ellipse').attr('cx',0).attr('cy',0).attr('rx',40).attr('ry',18).attr('fill','#fff');
+      g.append('ellipse').attr('cx',30).attr('cy',-8).attr('rx',30).attr('ry',14).attr('fill','#fff');
+      g.append('ellipse').attr('cx',-28).attr('cy',-6).attr('rx',26).attr('ry',12).attr('fill','#fff');
+      clouds.push({g,y,s,offset:x});
+    };
+    for(let i=0;i<8;i++) makeCloud(Math.random()*w, Math.random()*h*0.4, .8+Math.random()*0.8);
+    if(!REDUCE_MOTION){
+      const cloudTimer = d3.timer((elapsed)=>{
+        for(const c of clouds){
+          const speed = .015 + c.s*0.02;
+          const tx = (c.offset + elapsed*speed)%(w+220) - 110;
+          c.g.attr('transform',`translate(${tx},${c.y}) scale(${c.s})`);
+        }
+      });
+      activeTimers.push(cloudTimer);
+    }
+    // Field + blanket + tree
+    svgBG.append('rect').attr('y',h*0.7).attr('width',w).attr('height',h*0.3).attr('fill','#6abf69');
+    const bx=w*0.25, by=h*0.75, bw=w*0.5, bh=h*0.18;
+    svgBG.append('rect').attr('x',bx).attr('y',by).attr('width',bw).attr('height',bh).attr('fill','#fff').attr('opacity',0.95).attr('rx',8);
+    for(let i=0;i<10;i++){
+      svgBG.append('rect').attr('x',bx+i*bw/10).attr('y',by).attr('width',bw/20).attr('height',bh).attr('fill','#e74c3c').attr('opacity',0.5);
+      svgBG.append('rect').attr('x',bx).attr('y',by+i*bh/10).attr('width',bw).attr('height',bh/20).attr('fill','#e74c3c').attr('opacity',0.5);
+    }
+    svgBG.append('rect').attr('x',w*0.12).attr('y',h*0.55).attr('width',20).attr('height',h*0.25).attr('fill','#7a4b2a');
+    svgBG.append('circle').attr('cx',w*0.12+10).attr('cy',h*0.5).attr('r',60).attr('fill','#2ecc71');
+  }
+
+  // DP
+  function worldDP(){
+    clearBG(); const {w,h}=size(); const defs=svgBG.append('defs');
+    svgBG.append('rect').attr('width',w).attr('height',h).attr('fill',drawGradient(defs,'ocean',[
+      {offset:'0%', color:'#0c1445'},{offset:'100%', color:'#0a4663'}
+    ]));
+    for(let i=1;i<=6;i++){
+      const y = h - (i*(h/7));
+      svgBG.append('line').attr('x1',0).attr('y1',y).attr('x2',w).attr('y2',y).attr('stroke','rgba(255,255,255,.2)');
+    }
+    for(let i=0;i<28;i++){
+      const x = Math.random()*w, y = h*0.2 + Math.random()*h*0.7;
+      const g = svgBG.append('g').attr('transform',`translate(${x},${y})`);
+      g.append('line').attr('x1',0).attr('y1',20).attr('x2',0).attr('y2',-20).attr('stroke','#7fd3ff').attr('stroke-width',1.5).attr('opacity',0.8);
+      g.append('polygon').attr('points','0,-28 -6,-16 6,-16').attr('fill','#7fd3ff').attr('opacity',0.8);
+    }
+  }
+
+  /* GRAPHS */
+  function worldGraphs(){
+    clearBG();
+    const {w,h}=size();
+
+    svgBG.append('rect').attr('width',w).attr('height',h).attr('fill','#0a0612');
+
+    const spacing = 44;
+    const gridColor = 'rgba(168,85,247,.18)';
+    const subGridColor = 'rgba(236,72,153,.10)';
+    for(let x=0;x<=w;x+=spacing){
+      svgBG.append('line')
+        .attr('x1',x).attr('y1',0).attr('x2',x).attr('y2',h)
+        .attr('stroke', gridColor);
+    }
+    for(let y=0;y<=h;y+=spacing){
+      svgBG.append('line')
+        .attr('x1',0).attr('y1',y).attr('x2',w).attr('y2',y)
+        .attr('stroke', gridColor);
+    }
+    const diag = svgBG.append('g').attr('opacity',0.12);
+    for(let x=-h; x<w+h; x+=spacing*3){
+      diag.append('line')
+        .attr('x1',x).attr('y1',0)
+        .attr('x2',x-h).attr('y2',h)
+        .attr('stroke', subGridColor);
+    }
+
+    const glows=[];
+    const colors = ['#c084fc','#a855f7','#f472b6','#e879f9'];
+    for(let i=0;i<90;i++){
+      const cx = Math.random()*w, cy=Math.random()*h;
+      const r = Math.random()*2 + 1.6;
+      const base = colors[i % colors.length];
+      svgBG.append('circle').attr('cx',cx).attr('cy',cy).attr('r',r).attr('fill',base).attr('opacity',0.95);
+      const halo = svgBG.append('circle').attr('cx',cx).attr('cy',cy).attr('r',r*4.2).attr('fill',base).attr('opacity',0.08);
+      glows.push(halo);
+    }
+
+    if(!REDUCE_MOTION){
+      const neonTimer = d3.timer((t)=>{
+        const o = 0.05 + (Math.sin(t/800)+1)*0.05;
+        glows.forEach((g,idx)=>{
+          g.attr('opacity', o * (0.8 + (idx%5)*0.05) );
+        });
+      });
+      activeTimers.push(neonTimer);
+    }
+
+    const defs = svgBG.append('defs');
+    const vg = defs.append('radialGradient').attr('id','graphVign');
+    vg.append('stop').attr('offset','55%').attr('stop-color','#000').attr('stop-opacity',0);
+    vg.append('stop').attr('offset','100%').attr('stop-color','#000').attr('stop-opacity',0.35);
+    svgBG.append('rect').attr('width',w).attr('height',h).attr('fill','url(#graphVign)');
+  }
+
+  // Trees
+  function worldTrees(){
+    clearBG(); const {w,h}=size();
+    svgBG.append('rect').attr('width',w).attr('height',h).attr('fill','#0a0f12');
+    for(let i=0;i<4;i++){
+      svgBG.append('rect').attr('y',h*(0.55+i*0.1)).attr('width',w).attr('height',h).attr('fill',`rgba(46, 204, 113, ${0.05 + i*0.05})`);
+    }
+    function tree(x, baseY, scale){
+      const g = svgBG.append('g').attr('transform',`translate(${x},${baseY}) scale(${scale})`);
+      g.append('rect').attr('x',-3).attr('y',0).attr('width',6).attr('height',16).attr('fill','#7a4b2a');
+      g.append('polygon').attr('points','0,-28 -16,0 16,0').attr('fill','#1e5631');
+      g.append('polygon').attr('points','0,-44 -14,-18 14,-18').attr('fill','#1e5631');
+      g.append('polygon').attr('points','0,-58 -12,-36 12,-36').attr('fill','#1e5631');
+    }
+    for(let i=0;i<60;i++) tree(Math.random()*w, h*0.8 + Math.random()*h*0.15, 0.8+Math.random()*0.8);
+  }
+
+  // Two Pointers
+  function worldTwoPointers(){
+    clearBG(); const {w,h}=size(); const defs=svgBG.append('defs');
+    svgBG.append('rect').attr('width',w).attr('height',h)
+      .attr('fill',drawGradient(defs,'twilight',[{offset:'0%',color:'#0b1b2b'},{offset:'100%',color:'#143a52'}]));
+    const river = (yOff,color)=>{
+      const p=d3.path(); p.moveTo(0,h*0.2+yOff);
+      for(let x=0;x<=w;x+=40){
+        p.lineTo(x, h*0.2+yOff + Math.sin(x/120)*18);
+      } p.lineTo(w,h); p.lineTo(0,h); p.closePath();
+      svgBG.append('path').attr('d',p.toString()).attr('fill',color).attr('opacity',0.6);
+    };
+    river(80,'#1e88e5'); river(150,'#26c6da');
+    svgBG.append('polygon').attr('points',`${w*0.2},${h*0.2} ${w*0.2-10},${h*0.2+24} ${w*0.2+10},${h*0.2+24}`).attr('fill','#ffd166');
+    svgBG.append('polygon').attr('points',`${w*0.8},${h*0.35} ${w*0.8-10},${h*0.35+24} ${w*0.8+10},${h*0.35+24}`).attr('fill','#ffd166');
+  }
+
+  // Recursion
+  function worldRecursion(){
+    clearBG(); const {w,h}=size(); const defs=svgBG.append('defs');
+    svgBG.append('rect').attr('width',w).attr('height',h)
+      .attr('fill',drawGradient(defs,'deep',[{offset:'0%',color:'#0d0f1f'},{offset:'100%',color:'#1b2340'}]));
+    const cx=w/2, cy=h/2;
+    let r=10; for(let i=0;i<220;i++){
+      const ang=i*0.35; const x=cx+Math.cos(ang)*r; const y=cy+Math.sin(ang)*r;
+      svgBG.append('circle').attr('cx',x).attr('cy',y).attr('r',Math.max(1, 3 - i*0.01))
+        .attr('fill', d3.interpolateCool(i/220)).attr('opacity',0.9);
+      r+=1.25;
+    }
+  }
+
+  // Bit Manipulation
+  function worldBit(){
+    clearBG(); const {w,h}=size(); const defs=svgBG.append('defs');
+    svgBG.append('rect').attr('width',w).attr('height',h)
+      .attr('fill',drawGradient(defs,'bitbg',[{offset:'0%',color:'#03040a'},{offset:'100%',color:'#0a0f1a'}]));
+    const bits=[];
+    for(let i=0;i<120;i++){
+      const x=Math.random()*w, y=Math.random()*h;
+      const t = svgBG.append('text').attr('x',x).attr('y',y).attr('fill','#00ff9c').attr('opacity',0.6).attr('font-size',12).text(Math.random()<0.5?'0':'1');
+      bits.push(t);
+    }
+    if(!REDUCE_MOTION){
+      const timer=d3.timer(()=> bits.forEach((b,idx)=> b.attr('y', (parseFloat(b.attr('y'))+ (0.4+ (idx%5)*0.1))%h )));
+      activeTimers.push(timer);
+    }
+  }
+
+  // Stack
+  function worldStack(){
+    clearBG(); const {w,h}=size();
+    svgBG.append('rect').attr('width',w).attr('height',h).attr('fill','#0b1020');
+    for(let i=0;i<10;i++){
+      const width=w*0.6 + Math.sin(i)*40;
+      svgBG.append('rect').attr('x',w*0.2 - i*6).attr('y',h*0.2 + i*34)
+        .attr('width',width).attr('height',26).attr('rx',8)
+        .attr('fill', d3.interpolateBlues(0.3 + i*0.06)).attr('opacity',0.9);
+    }
+  }
+
+  // Queue
+  function worldQueue(){
+    clearBG(); const {w,h}=size();
+    svgBG.append('rect').attr('width',w).attr('height',h).attr('fill','#0e0f16');
+    for(let i=0;i<3;i++){
+      const y=h*0.35+i*90;
+      svgBG.append('rect').attr('x',50).attr('y',y).attr('width',w-100).attr('height',16).attr('rx',8).attr('fill','#223044');
+      const dots=[];
+      for(let d=0; d<20; d++){
+        const x=70+d*((w-140)/20);
+        const c=svgBG.append('circle').attr('cx',x).attr('cy',y+8).attr('r',3).attr('fill','#9bb2d2'); dots.push(c);
+      }
+      if(!REDUCE_MOTION){
+        const timer=d3.timer((t)=> dots.forEach((c,idx)=> c.attr('cx', 70+((idx*40 + (t*0.12))%(w-140)) )));
+        activeTimers.push(timer);
+      }
+    }
+  }
+
+  // Binary Search
+  function worldBinarySearch(){
+    clearBG(); const {w,h}=size(); const defs=svgBG.append('defs');
+    svgBG.append('rect').attr('width',w).attr('height',h).attr('fill',drawGradient(defs,'split',[
+      {offset:'0%',color:'#001219'},{offset:'100%',color:'#005f73'}
+    ]));
+    svgBG.append('line').attr('x1',w/2).attr('y1',0).attr('x2',w/2).attr('y2',h).attr('stroke','#94d2bd').attr('stroke-width',2).attr('opacity',0.6);
+    let x=w/2, step=w/4;
+    for(let i=0;i<6;i++){
+      svgBG.append('line').attr('x1',x).attr('y1',0).attr('x2',x).attr('y2',h).attr('stroke','rgba(148,210,189,.22)');
+      x = x + (i%2===0? step : -step); step/=2;
+    }
+  }
+
+  // Linked List
+  function worldLinkedList(){
+    clearBG(); const {w,h}=size();
+    svgBG.append('rect').attr('width',w).attr('height',h).attr('fill','#0b0b12');
+    const path = d3.path();
+    path.moveTo(60, h*0.3);
+    for(let i=1;i<=10;i++){
+      const x=i*(w-120)/10 + 60, y=h*0.3 + Math.sin(i)*40;
+      path.lineTo(x,y);
+    }
+    svgBG.append('path').attr('d',path.toString()).attr('fill','none').attr('stroke','#6ea8fe').attr('stroke-width',3).attr('opacity',0.6);
+    for(let i=0;i<=10;i++){
+      const x=60 + i*(w-120)/10, y=h*0.3 + Math.sin(i)*40;
+      svgBG.append('circle').attr('cx',x).attr('cy',y).attr('r',10).attr('fill','#1e90ff');
+      if(i<10) svgBG.append('rect').attr('x',x).attr('y',y-4).attr('width',(w-120)/10).attr('height',8).attr('fill','#2d5dd1').attr('opacity',0.5);
+    }
+  }
+
+  // Heap
+  function worldHeap(){
+    clearBG(); const {w,h}=size(); const defs=svgBG.append('defs');
+    svgBG.append('rect').attr('width',w).attr('height',h).attr('fill',drawGradient(defs,'desert',[
+      {offset:'0%',color:'#2a1b0f'},{offset:'100%',color:'#5a3f1d'}
+    ]));
+    function pyramid(x,baseY,scale){
+      const g=svgBG.append('g').attr('transform',`translate(${x},${baseY}) scale(${scale})`);
+      g.append('polygon').attr('points','0,-60 -60,40 60,40').attr('fill','#e0b36a').attr('opacity',0.9);
+      g.append('polygon').attr('points','0,-60 60,40 0,40').attr('fill','#d39c4b').attr('opacity',0.9);
+    }
+    for(let i=0;i<6;i++) pyramid(80+i* (w-160)/5, h*0.75, .8+Math.random()*0.6);
+  }
+
+  // Greedy
+  function worldGreedy(){
+    clearBG(); const {w,h}=size();
+    svgBG.append('rect').attr('width',w).attr('height',h).attr('fill','#12100f');
+    for(let i=0;i<120;i++){
+      const cx=Math.random()*w, cy=Math.random()*h, r=3+Math.random()*3;
+      const c=svgBG.append('circle').attr('cx',cx).attr('cy',cy).attr('r',r).attr('fill','#ffd166').attr('opacity',0.85);
+      svgBG.append('circle').attr('cx',cx).attr('cy',cy).attr('r',r*1.6).attr('fill','#ffd166').attr('opacity',0.06);
+      if(!REDUCE_MOTION){
+        const t = d3.timer((tt)=> c.attr('r', r + Math.sin((tt+cx)/700)*0.4) );
+        activeTimers.push(t);
+      }
+    }
+  }
+
+  // Intervals
+  function worldIntervals(){
+    clearBG(); const {w,h}=size(); const defs=svgBG.append('defs');
+    svgBG.append('rect').attr('width',w).attr('height',h).attr('fill',drawGradient(defs,'sunset',[
+      {offset:'0%', color:'#ff7e5f'},{offset:'100%', color:'#2b1055'}
+    ]));
+    for(let i=0;i<5;i++){
+      const path = d3.path();
+      const yBase = h*0.4 + i*h*0.12;
+      path.moveTo(0,yBase);
+      for(let x=0;x<=w;x+=w/8){
+        const y = yBase + Math.sin((x/w)*Math.PI*2 + i)*30 + i*10;
+        path.lineTo(x,y);
+      }
+      path.lineTo(w,h); path.lineTo(0,h); path.closePath();
+      svgBG.append('path').attr('d',path.toString()).attr('fill', d3.interpolatePuRd(0.2 + i*0.12)).attr('opacity',0.9);
+    }
+  }
+
+  // Math
+  function worldMath(){
+    clearBG(); const {w,h}=size();
+    svgBG.append('rect').attr('width',w).attr('height',h).attr('fill','#0a1f14');
+    const eq = ['Σ','π','√','∫','∞','≈','≡','∂','∇','θ','α','β'];
+    for(let i=0;i<80;i++){
+      svgBG.append('text').attr('x',Math.random()*w).attr('y',Math.random()*h)
+        .attr('fill','rgba(255,255,255,.18)').attr('font-size',12+Math.random()*18).text(eq[(Math.random()*eq.length)|0]);
+    }
+  }
+
+  // Implementation
+  function worldImplementation(){
+    clearBG(); const {w,h}=size();
+    svgBG.append('rect').attr('width',w).attr('height',h).attr('fill','#061426');
+    for(let x=0;x<w;x+=32) svgBG.append('line').attr('x1',x).attr('y1',0).attr('x2',x).attr('y2',h).attr('stroke','rgba(80,160,255,.12)');
+    for(let y=0;y<h;y+=32) svgBG.append('line').attr('x1',0).attr('y1',y).attr('x2',w).attr('y2',y).attr('stroke','rgba(80,160,255,.12)');
+    const gear=(cx,cy,r,teeth)=>{
+      const g=svgBG.append('g').attr('transform',`translate(${cx},${cy})`);
+      g.append('circle').attr('r',r*0.6).attr('fill','none').attr('stroke','#7fb0ff').attr('stroke-width',2);
+      for(let i=0;i<teeth;i++){
+        const a=i*2*Math.PI/teeth; const x1=Math.cos(a)*r, y1=Math.sin(a)*r;
+        const x2=Math.cos(a)*(r*0.8), y2=Math.sin(a)*(r*0.8);
+        g.append('line').attr('x1',x2).attr('y1',y2).attr('x2',x1).attr('y2',y1).attr('stroke','#7fb0ff').attr('opacity',0.8);
+      }
+      return g;
+    };
+    const g1=gear(w*0.3,h*0.5,60,14), g2=gear(w*0.38,h*0.5,40,12);
+    if(!REDUCE_MOTION){
+      const t=d3.timer((tt)=>{ g1.attr('transform',`translate(${w*0.3},${h*0.5}) rotate(${tt/40})`); g2.attr('transform',`translate(${w*0.38},${h*0.5}) rotate(${-tt/60})`); });
+      activeTimers.push(t);
+    }
+  }
+
+  // Sorting
+  function worldSorting(){
+    clearBG(); const {w,h}=size(); const defs=svgBG.append('defs');
+    svgBG.append('rect').attr('width',w).attr('height',h).attr('fill',drawGradient(defs,'sortbg',[
+      {offset:'0%',color:'#1b2735'},{offset:'100%',color:'#090a0f'}
+    ]));
+    const bars = 40; const width = w/(bars+4);
+    const values = d3.range(bars).map(()=> Math.random()*h*0.5 + h*0.1);
+    values.sort((a,b)=>a-b);
+    values.forEach((v,i)=> svgBG.append('rect').attr('x', (i+2)*width).attr('y', h-v-60).attr('width',width*0.8).attr('height',v)
+      .attr('fill', d3.interpolateTurbo(i/bars)).attr('rx',4).attr('opacity',0.9));
+  }
+
+  // Queue of worlds mapping (DEFAULT "All" → ARRAYS)
+  const worldByTopic = {
+    "Arrays": worldArrays,
+    "Strings": worldStrings,
+    "Two Pointers": worldTwoPointers,
+    "Graphs": worldGraphs,
+    "Trees": worldTrees,
+    "DP": worldDP,
+    "Recursion": worldRecursion,
+    "Bit Manipulation": worldBit,
+    "Stack": worldStack,
+    "Queue": worldQueue,
+    "Binary Search": worldBinarySearch,
+    "Linked List": worldLinkedList,
+    "Heap": worldHeap,
+    "Greedy": worldGreedy,
+    "Intervals": worldIntervals,
+    "Math": worldMath,
+    "Implementation": worldImplementation,
+    "Sorting": worldSorting,
+    "All": worldArrays
+  };
+
+  /***** Topic normalization *****
+  */
+  function normalizeTopic(s){
+    if(!s) return s;
+    const key = String(s).trim().toLowerCase();
+    return TOPIC_ALIASES.get(key) || s;
+  }
+
+  /***** Topic Switcher *****/
+  const topicsRow = document.getElementById('topicsRow');
+  function renderTopicChips(){
+    topicsRow.innerHTML = '';
+    topics.forEach(t=>{
+      const span = document.createElement('span');
+      span.className = 'chip' + (t===currentTopic?' active':'');
+      span.textContent = t;
+      span.tabIndex=0;
+      span.setAttribute('role','button');
+      span.onclick = ()=> switchTopic(t);
+      span.onkeydown = (e)=>{ if(e.key==='Enter' || e.key===' ') {e.preventDefault(); switchTopic(t);} };
+      topicsRow.appendChild(span);
+    });
+    // Update datalist for modal
+    const dl = document.getElementById('topicList'); dl.innerHTML='';
+    topics.filter(t=>t!=="All").forEach(t=>{
+      const o = document.createElement('option'); o.value=t; dl.appendChild(o);
+    });
+  }
+
+  function switchTopic(topic){
+    currentTopic = topic;
+    renderTopicChips();
+    drawWorld();
+    render();
+  }
+
+  function drawWorld(){
+    (worldByTopic[currentTopic]||worldByTopic['All'])();
+  }
+
+  /***** Force Simulation + Nodes *****/
+  let sim, nodeSel, labelSel, gNodes;
+
+  function floatForce(strength = 0.08, k = 0.002) {
+    let nodes = [];
+    function force(alpha) {
+      if(REDUCE_MOTION) return;
+      const t = performance.now();
+      for (const d of nodes) {
+        d.vx += Math.sin((d.x + t) * k) * strength * alpha;
+        d.vy += Math.cos((d.y - t) * k) * strength * alpha;
+      }
+    }
+    force.initialize = _ => (nodes = _);
+    return force;
+  }
+
+  function radiusFor(d){
+    const base = diffRadius[d.diff] || diffRadius.Unknown;
+    return d.done ? Math.max(14, Math.round(base*0.72)) : base;
+  }
+
+  function packDataForSim(items){
+    return items.map((d)=>({
+      ...d,
+      x: Math.random()*window.innerWidth,
+      y: Math.random()*window.innerHeight,
+      r: radiusFor(d)
+    }));
+  }
+
+  function currentItems(){
+    return data.filter(d=> currentTopic==='All' ? true : d.topic===currentTopic);
+  }
+
+  function truncate(s, n){ return s.length>n ? s.slice(0,n-1)+'…' : s; }
+
+  function render(){
+    const items = currentItems();
+    emptyHint.style.display = items.length? 'none':'block';
+
+    const {w,h} = size();
+
+    // Stats
+    const doneCount = items.filter(d=>d.done).length;
+    const ring = document.getElementById('ringProg');
+    const pct = items.length ? Math.round((doneCount/items.length)*100) : 0;
+    ring.setAttribute('stroke-dasharray', `${pct} ${100-pct}`);
+    document.getElementById('statText').textContent = `${doneCount}/${items.length} done • ${currentTopic}`;
+
+    // FG sizing
+    svgFG.attr('width', w).attr('height', h);
+
+    // DATA JOIN
+    const simData = packDataForSim(items);
+
+    // Clear previous nodes
+    svgFG.selectAll('.node').remove();
+    gNodes = svgFG.selectAll('.node').data(simData, d=>d.id).enter().append('g').attr('class','node');
+
+    // Circles with entrance + pulse on toggle
+    const circles = gNodes.append('circle')
+      .attr('r', 0)
+      .attr('fill', d=> d.done ? nodeDoneFill : nodeFill)
+      .attr('stroke', nodeStroke)
+      .attr('stroke-width', 2)
+      .style('cursor','pointer')
+      .on('click', (e,d)=> { window.open(d.link, '_blank','noopener'); })
+      .on('dblclick', function(e,d){
+        d3.select(this)
+          .transition().duration(140).attr('r', radiusFor(d)*1.15)
+          .transition().duration(180).attr('r', radiusFor(d)*0.85)
+          .on('end', ()=> { toggleDone(d.id); });
+      })
+      .on('mouseover', (e,d)=> showTip(d))
+      .on('mousemove', positionTip)
+      .on('mouseleave', hideTip);
+
+    // entrance grow
+    circles.transition().duration(500).ease(d3.easeCubicOut).attr('r', d=>d.r);
+
+    // Labels
+    const labels = gNodes.append('text')
+      .attr('class', d=> 'label' + (d.done ? ' muted':'' ))
+      .attr('dy', d=> d.r + 12)
+      .text(d=> truncate(d.title, 36));
+    nodeSel = circles; labelSel = labels;
+
+    // Dragging
+    const drag = d3.drag()
+      .on('start', (event,d)=>{
+        if(!event.active) sim.alphaTarget(0.2).restart();
+        d.fx = d.x; d.fy = d.y;
+      })
+      .on('drag', (event,d)=>{ d.fx = event.x; d.fy = event.y; })
+      .on('end', (event,d)=>{ d.fx = null; d.fy = null; sim.alphaTarget(0); });
+    gNodes.call(drag);
+
+    // Force sim
+    sim?.stop();
+    sim = d3.forceSimulation(simData)
+      .force('charge', d3.forceManyBody().strength(-80))
+      .force('center', d3.forceCenter(w/2, h/2))
+      .force('collision', d3.forceCollide().radius(d=>d.r + 6))
+      .force('float', floatForce(0.08, 0.002))
+      .on('tick', ()=>{ gNodes.attr('transform', d=>`translate(${d.x},${d.y})`); });
+  }
+
+  function showTip(d){
+    tooltip.style.opacity = 1; tooltip.style.transform='translateY(0)';
+    const done = d.done ? 'Done' : 'Not Done';
+    tooltip.textContent = `${d.title} • ${d.diff||'Unknown'} • ${d.topic} • ${done}`;
+    positionTip();
+  }
+  function positionTip(e){
+    const m = d3.pointer(e || event, document.body);
+    const pad = 14;
+    let x = m[0] + 16, y = m[1] + 16;
+    const rect = tooltip.getBoundingClientRect();
+    if(x + rect.width + pad > window.innerWidth) x = window.innerWidth - rect.width - pad;
+    if(y + rect.height + pad > window.innerHeight) y = window.innerHeight - rect.height - pad;
+    tooltip.style.left = x+'px'; tooltip.style.top = y+'px';
+  }
+  function hideTip(){ tooltip.style.opacity = 0; tooltip.style.transform='translateY(-6px)'; }
+
+  /***** Data mutations *****/
+  function toggleDone(id){
+    const idx = data.findIndex(d=>d.id===id);
+    if(idx<0) return;
+    const was = data[idx].done;
+    data[idx].done = !data[idx].done;
+    saveData(data);
+    if(!was && data[idx].done) confettiBurst();
+    render();
+  }
+
+  /***** Surprise Me 💥 *****/
+  function surpriseMe(){
+    const inTopic = currentItems();
+    const pool = inTopic.filter(d=>!d.done);
+    const universe = data.filter(d=>!d.done);
+    const candidates = pool.length? pool : (universe.length? universe : (inTopic.length? inTopic : data));
+    if(!candidates.length) return;
+    const pick = candidates[Math.floor(Math.random()*candidates.length)];
+    window.open(pick.link, '_blank','noopener');
+  }
+
+  /***** Recenter 🧭 *****/
+  function recenter(){ sim?.alpha(1).restart(); }
+
+  /***** Import / Export *****/
+  const modal = document.getElementById('importModal');
+  const importText = document.getElementById('importText');
+  const defaultTopic = document.getElementById('defaultTopic');
+  const defaultDiff = document.getElementById('defaultDiff');
+
+  function openModal(){ modal.classList.add('open'); modal.setAttribute('aria-hidden','false'); importText.focus(); }
+  function closeModal(){ modal.classList.remove('open'); modal.setAttribute('aria-hidden','true'); }
+
+  class URLGuess{
+    constructor(url){ this.url=url; }
+    get title(){
+      try{
+        const u = new URL(this.url);
+        const slug = u.pathname.split('/').filter(Boolean).pop() || u.hostname;
+        return decodeURIComponent(slug.replace(/[-_]/g,' ')).replace(/\b\w/g, m=>m.toUpperCase());
+      }catch(e){ return this.url; }
+    }
+  }
+
+  function parseLine(line, fallbackTopic, fallbackDiff){
+    const parts = line.split(';').map(s=>s.trim()).filter(Boolean);
+    if(parts.length===0) return null;
+    if(parts.length===1){
+      const url = parts[0];
+      return { id: uid(), title: new URLGuess(url).title, link: url, topic: normalizeTopic(fallbackTopic||'Arrays'), diff: fallbackDiff||'Unknown', done:false };
+    }else if(parts.length===2){
+      let [url,topic] = parts;
+      topic = normalizeTopic(topic||fallbackTopic||'Arrays');
+      return { id: uid(), title: new URLGuess(url).title, link: url, topic, diff: fallbackDiff||'Unknown', done:false };
+    }else{
+      let [title,url,topic,diff] = parts;
+      topic = normalizeTopic(topic||fallbackTopic||'Arrays');
+      return { id: uid(), title: title||new URLGuess(url).title, link: url, topic, diff: diff||fallbackDiff||'Unknown', done:false };
+    }
+  }
+
+  function addImported(){
+    const lines = importText.value.split('\n').map(s=>s.trim()).filter(Boolean);
+    const fallbackTopic = normalizeTopic(defaultTopic.value.trim() || null);
+    const fallbackDiff = defaultDiff.value || null;
+
+    const existingLinks = new Set(data.map(d=>d.link));
+    const toAdd = [];
+    for(const line of lines){
+      const p = parseLine(line, fallbackTopic, fallbackDiff);
+      if(!p) continue;
+      if(!existingLinks.has(p.link)){
+        toAdd.push(p); existingLinks.add(p.link);
+      }
+    }
+    if(toAdd.length){
+      data = [...data, ...toAdd];
+      saveData(data);
+      topics = computeTopics();
+      renderTopicChips();
+      drawWorld();
+      render();
+    }
+    closeModal();
+    importText.value=''; defaultTopic.value=''; defaultDiff.value='';
+  }
+
+  function exportJSON(){
+    const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'dsaWorlds_export.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  /***** Confetti *****/
+  function confettiBurst(){
+    for(let i=0;i<40;i++){
+      const piece = document.createElement('i');
+      piece.style.left = Math.random()*100 + 'vw';
+      piece.style.background = `hsl(${Math.random()*360},80%,60%)`;
+      piece.style.animationDelay = (Math.random()*0.3)+'s';
+      piece.style.transform = `rotate(${(Math.random()*360)|0}deg)`;
+      confettiRoot.appendChild(piece);
+      setTimeout(()=> piece.remove(), 1400);
+    }
+  }
+
+  /***** Resize *****/
+  function onResize(){
+    const {w,h}=size();
+    svgBG.attr('width', w).attr('height', h);
+    svgFG.attr('width', w).attr('height', h);
+    drawWorld();
+    sim?.force('center', d3.forceCenter(w/2, h/2));
+    recenter();
+  }
+  window.addEventListener('resize', onResize);
+
+  /***** Keyboard shortcuts *****/
+  window.addEventListener('keydown', (e)=>{
+    if(e.target && ['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)) return;
+    if(e.key==='s' || e.key==='S'){ e.preventDefault(); surpriseMe(); }
+    else if(e.key==='r' || e.key==='R'){ e.preventDefault(); recenter(); }
+    else if(e.key==='a' || e.key==='A'){ e.preventDefault(); openModal(); }
+  });
+
+  /***** Buttons *****/
+  document.getElementById('surpriseBtn').onclick = surpriseMe;
+  document.getElementById('recenterBtn').onclick = recenter;
+  document.getElementById('exportBtn').onclick = exportJSON;
+  document.getElementById('addBtn').onclick = openModal;
+  document.getElementById('cancelImport').onclick = closeModal;
+  document.getElementById('confirmImport').onclick = addImported;
+  document.getElementById('importModal').addEventListener('click', (e)=>{ if(e.target.id==='importModal') closeModal(); });
+
+  /***** Init *****/
+  function initTopicListFromRequest(){
+    const requested = ["Arrays","Strings","Two Pointers","Graphs","Trees","DP","Recursion","Bit Manipulation","Stack","Queue","Binary Search","Linked List","Heap","Greedy","Intervals","Math","Implementation","Sorting"];
+    for(const t of requested){ if(!data.some(d=>d.topic===t)){} }
+    topics = Array.from(new Set(["All", ...requested, ...data.map(d=>d.topic)]));
+  }
+
+  initTopicListFromRequest();
+  renderTopicChips();
+  onResize();  // sets sizes + world
+  render();
+
+})();
+</script>
+
+<noscript>
+  <div style="position:fixed;inset:0;display:grid;place-items:center;color:#000;background:#fff">
+    <div>⚠ JavaScript is required to run DSA Worlds.</div>
+  </div>
+</noscript>
+</body>
+</html>
