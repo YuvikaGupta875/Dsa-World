@@ -2,9 +2,9 @@
 
 
 **DSA Worlds** is a lightweight web app to visualize and track Data Structures & Algorithms progress interactively.
-**Link :** https://yuvikagupta875.github.io/Dsa-World/
----
 
+---
+Link : https://yuvikagupta875.github.io/Dsa-World/
 ## Overview
 Each DSA topic appears as an animated “world.”  
 Problems are displayed as draggable bubbles that open directly on LeetCode.  
